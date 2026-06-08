@@ -1,0 +1,4 @@
+export AWS_REGION=us-west-2
+export API_GATEWAY_ID=hgiq88jlc0
+export API_GATEWAY_URL=https://hgiq88jlc0.execute-api.us-west-2.amazonaws.com/dev
+export ID=f3f5aa3e-5190-472d-b009-158e6e077d5e
