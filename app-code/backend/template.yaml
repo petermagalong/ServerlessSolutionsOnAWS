@@ -1,0 +1,352 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Bookmarks - A simple Serverless App using AWS SAM
+Resources:
+  api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub
+        - Bookmark App
+        - ResourceName: /bookmarks
+      StageName: !Ref APIGatewayStageName
+      Cors:
+        AllowMethods: "'POST, GET, DELETE, PUT'"
+        AllowHeaders: "'*'"
+        AllowOrigin: "'*'"
+      DefinitionBody:
+        swagger: '2.0'
+        info: {}
+        paths:
+          /bookmarks:
+            get:
+              description : "list bookmarks"
+              produces:
+                - application/json
+              responses:
+                '200':
+                  description: Successfully retrieved all bookmarks!!
+                  schema:
+                    $ref: '#/definitions/Bookmarks'
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${listBookmarks.Arn}/invocations
+            post:
+              description : "create bookmarks"
+              responses:
+                "200":
+                  description: "Successfully Added BookMark"
+                  schema:
+                    $ref: '#/definitions/Bookmarks'
+                "404":
+                  description: "bookmark not found"
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${createBookmark.Arn}/invocations
+          /bookmarks/{id}:
+            get:
+              description : "create a bookmark"
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  type: string
+              responses:
+                "200":
+                  description: "Successfully added a bookmark"
+                "404":
+                  description: "bookmark not found"
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${getBookmark.Arn}/invocations
+            put:
+              description : "update a bookmark"
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  type: string
+              responses:
+                "200":
+                  description: "Successfully updated a bookmark"
+                "404":
+                  description: "Could not update the bookmark"
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${updateBookmark.Arn}/invocations
+            delete:
+              description : "delete a bookmark"
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  type: string
+              responses:
+                "200":
+                  description: "Successfully deleted a bookmark"
+                "404":
+                  description: "Could not delete a bookmark"
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${deleteBookmark.Arn}/invocations
+            options:
+              description : "update a bookmark"
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  type: string
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'POST, GET, DELETE, PUT'"
+                      method.response.header.Access-Control-Allow-Headers: "'*'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: "{}\n"
+                requestTemplates:
+                  application/json: "{\n  \"statusCode\" : 200\n}\n"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+        definitions:
+          Bookmarks:
+            type : object
+            properties : 
+              id : 
+                type : "string"
+              url :
+                type : "string"
+              name :
+                type : "string"
+      EndpointConfiguration: REGIONAL
+    Metadata:
+      FinTag: /bookmarks
+  getBookmark:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: getBookmark
+      Description: !Sub
+        - ${ResourceName} Function 
+        - ResourceName: getBookmark
+      CodeUri: src/getBookmark
+      Handler: index.handler
+      Runtime: nodejs24.x
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Role: !Ref LambdaDeploymentRole
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref bookmarksTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref bookmarksTable
+          TABLE_ARN: !GetAtt bookmarksTable.Arn
+      Events:
+        apiGET:
+          Type: Api
+          Properties:
+            Path: /bookmarks/{id}
+            Method: GET
+            RestApiId: !Ref api
+    Metadata:
+      FinTag: getBookmark
+  updateBookmark:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: updateBookmark
+      Description: !Sub
+        - ${ResourceName} Function
+        - ResourceName: updateBookmark
+      CodeUri: src/updateBookmark
+      Handler: index.handler
+      Runtime: nodejs24.x
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Role : !Ref LambdaDeploymentRole
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref bookmarksTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref bookmarksTable
+          TABLE_ARN: !GetAtt bookmarksTable.Arn
+      Events:
+        apiPUT:
+          Type: Api
+          Properties:
+            Path: /bookmarks/{id}
+            Method: PUT
+            RestApiId: !Ref api
+    Metadata:
+      FinTag: updateBookmark
+  createBookmark:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: createBookmark
+      Description: !Sub
+        - ${ResourceName} Function
+        - ResourceName: createBookmark
+      CodeUri: src/createBookmark
+      Handler: index.handler
+      Runtime: nodejs24.x
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Role : !Ref LambdaDeploymentRole
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref bookmarksTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref bookmarksTable
+          TABLE_ARN: !GetAtt bookmarksTable.Arn
+      Events:
+        apiPOST:
+          Type: Api
+          Properties:
+            Path: /bookmarks
+            Method: POST
+            RestApiId: !Ref api
+    Metadata:
+      FinTag: createBookmark
+  deleteBookmark:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: deleteBookmark
+      Description: !Sub
+        - ${ResourceName} Function
+        - ResourceName: deleteBookmark
+      CodeUri: src/deleteBookmark
+      Handler: index.handler
+      Runtime: nodejs24.x
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Role : !Ref LambdaDeploymentRole
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref bookmarksTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref bookmarksTable
+          TABLE_ARN: !GetAtt bookmarksTable.Arn
+      Events:
+        apiDELETE:
+          Type: Api
+          Properties:
+            Path: /bookmarks/{id}
+            Method: DELETE
+            RestApiId: !Ref api
+    Metadata:
+      FinTag: deleteBookmark
+  listBookmarks:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: listBookmarks
+      Description: !Sub
+        - ${ResourceName} Function
+        - ResourceName: listBookmarks
+      CodeUri: src/listBookmarks
+      Handler: index.handler
+      Runtime: nodejs24.x
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Role : !Ref LambdaDeploymentRole
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref bookmarksTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref bookmarksTable
+          TABLE_ARN: !GetAtt bookmarksTable.Arn
+          INDEX_NAME: 'user-index'
+      Events:
+        apiGETAll:
+          Type: Api
+          Properties:
+            Path: /bookmarks
+            Method: GET
+            RestApiId: !Ref api
+    Metadata:
+      FinTag: listBookmarks
+
+  bookmarksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: bookmarkUrl
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TableName: bookmarksTable
+      GlobalSecondaryIndexes:
+        -
+          IndexName: "bookmarkUrl-index"
+          KeySchema:
+            -
+              AttributeName: "bookmarkUrl"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: "5"
+            WriteCapacityUnits: "5"
+        -
+          IndexName: "user-index"
+          KeySchema:
+            -
+              AttributeName: "username"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: "5"
+            WriteCapacityUnits: "5"
+    Metadata:
+      FinTag: Bookmarks
+      
+Parameters:
+  APIGatewayStageName:
+    Type: String
+    Description: Environment name used for API Gateway Stage names
+  LambdaDeploymentRole:
+    Type: String
+    Description: Role used for Lambda functions in Sam deployment
